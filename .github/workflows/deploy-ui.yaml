@@ -13,8 +13,8 @@ permissions:
 
 env:
   AWS_REGION: ap-southeast-1
-  EKS_CLUSTER: capstone-group2-cluster
-  ECR_REPOSITORY: capstone-group2-ui
+  EKS_CLUSTER: group2-capstone-cluster
+  ECR_REPOSITORY: group2-capstone-ui
   #NAMESPACE: retail
 
 jobs:
