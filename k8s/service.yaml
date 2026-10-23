@@ -3,6 +3,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ui
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
   #namespace: retail
 spec:
   type: LoadBalancer
