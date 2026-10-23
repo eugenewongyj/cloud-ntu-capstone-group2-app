@@ -64,3 +64,14 @@ jobs:
 
           kubectl rollout status deployment/ui \
             --timeout=180s
+
+      - name: Display UI URL
+        run: |
+          kubectl get svc ui
+
+          echo "Load Balancer hostname:"
+          kubectl get svc ui \
+            -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+          echo
+
+       
