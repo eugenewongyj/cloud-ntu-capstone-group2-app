@@ -1,6 +1,6 @@
 name: CI Security Gates
 run-name: Security gates for ${{ github.event.pull_request.title || github.ref_name }}
-                uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+
 on:
   pull_request:
     branches: [main]
