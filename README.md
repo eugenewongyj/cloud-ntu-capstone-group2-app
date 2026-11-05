@@ -1,3 +1,14 @@
+For Group 2:
+To manually deploy applications:
+Log into cluster: aws eks update-kubeconfig --name group2-capstone-cluster --region ap-southeast-1
+Create retail namespace if it does not exist: kubectl create namespace retail
+Create catalog application: helm upgrade --install catalog ./src/catalog/chart -n retail --wait --timeout 5m
+Create carts application: helm upgrade --install carts ./src/cart/chart -n retail --wait --timeout 5m
+Create orders application: helm upgrade --install orders ./src/orders/chart -n retail --wait --timeout 5m
+Create checkout application: helm upgrade --install checkout ./src/checkout/chart -n retail --wait --timeout 5m
+Create ui application: helm upgrade --install ui ./src/ui/chart -n retail --wait --timeout 5m
+Access the ui: kubectl port-forward svc/ui 8080:80 -n retail
+
 ![Banner](./docs/images/banner.png)
 
 <div align="center">
