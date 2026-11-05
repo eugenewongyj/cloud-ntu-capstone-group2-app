@@ -1,0 +1,52 @@
+name: Deploy Orders and Checkout to EKS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write      # GitHub -> AWS OIDC login
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-1
+  EKS_CLUSTER: group2-capstone-cluster
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [orders, checkout]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        run: |
+          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/group2-capstone-${{ matrix.service }}:${{ github.sha }}"
+          docker build -t "$IMAGE_URI" ./src/${{ matrix.service }}
+          docker push "$IMAGE_URI"
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+          echo "Pushed: $IMAGE_URI" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Configure kubectl
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER"
+
+      - name: Deploy to EKS
+        run: |
+          if [ -f k8s/${{ matrix.service }}/serviceaccount.yaml ]; then
+            kubectl apply -f k8s/${{ matrix.service }}/serviceaccount.yaml
+          fi
+          sed "s|REPLACE_WITH_IMAGE|$IMAGE_URI|g" k8s/${{ matrix.service }}/deployment.yaml | kubectl apply -f -
+          kubectl apply -f k8s/${{ matrix.service }}/service.yaml
+          kubectl rollout status deployment/${{ matrix.service }} --timeout=300s
