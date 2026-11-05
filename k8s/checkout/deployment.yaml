@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout
+  labels:
+    app: checkout
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: checkout
+  template:
+    metadata:
+      labels:
+        app: checkout
+    spec:
+      containers:
+        - name: checkout
+          image: REPLACE_WITH_IMAGE
+          ports:
+            - containerPort: 8080
+          env:
+            - name: RETAIL_CHECKOUT_PERSISTENCE_PROVIDER
+              value: "in-memory"        # later: redis (ElastiCache)
+            - name: RETAIL_CHECKOUT_ENDPOINTS_ORDERS
+              value: "http://orders"    # internal DNS name of the orders Service
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 512Mi

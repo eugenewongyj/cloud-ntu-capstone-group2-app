@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders
+  labels:
+    app: orders
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orders
+  template:
+    metadata:
+      labels:
+        app: orders
+    spec:
+      containers:
+        - name: orders
+          image: REPLACE_WITH_IMAGE
+          ports:
+            - containerPort: 8080
+          env:
+            - name: RETAIL_ORDERS_PERSISTENCE_PROVIDER
+              value: "in-memory"        # later: postgres (Aurora Serverless v2)
+            - name: RETAIL_ORDERS_MESSAGING_PROVIDER
+              value: "in-memory"        # later: sqs or rabbitmq
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
