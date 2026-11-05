@@ -1,0 +1,30 @@
+# =====================================================================
+# Trivy risk acceptance register
+# Every entry must have: reason, evidence, approver, and an expiry date.
+# After the expiry date the CI gate fails again and the entry must be reviewed.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# Spring Framework 6.2.19 (cart, orders, ui) — fix only in 7.x
+# Fix requires Spring Boot 3.5 -> 4.x major migration (application code
+# changes). Out of scope for capstone ("application development is not
+# assessed"). Tracked as backlog item: "Upgrade Java services to Spring Boot 4".
+#
+# CVE-2026-47884 (CRITICAL) RCE via XsltView path handling
+#   Not exploitable: no service uses XsltView/XSLT rendering
+#   (UI renders with Thymeleaf; cart and orders are JSON REST APIs).
+#
+# CVE-2026-47890 (CRITICAL) SSE stream corruption with view rendering
+#   Not exploitable: cart/orders have no Server-Sent Events. UI chat uses SSE
+#   for plain data only (no view rendering) and is disabled (chat.enabled=false).
+#
+# CVE-2026-47892 (CRITICAL) Header predicate bypass in WebFlux Functional Endpoints (ui)
+#   Not exploitable: UI defines routes only with annotated @Controller classes;
+#   no RouterFunction / RequestPredicates (functional endpoints) are used.
+#   cart and orders do not use WebFlux.
+#
+# Raised by: zeyaulhaq (DevSecOps)   Approved by: Eugene (DevSecOps) in PR review
+# ---------------------------------------------------------------------
+CVE-2026-47884 exp:2026-11-30
+CVE-2026-47890 exp:2026-11-30
+CVE-2026-47892 exp:2026-11-30

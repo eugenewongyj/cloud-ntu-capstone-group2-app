@@ -1,0 +1,58 @@
+name: CI Security Gates
+run-name: Security gates for ${{ github.event.pull_request.title || github.ref_name }}
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------
+  # Gate 1: no secrets committed (passwords, keys, tokens)
+  # ---------------------------------------------------------------
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------
+  # Gate 2 (SCA) + Gate 3 (image scan), once per service
+  # ---------------------------------------------------------------
+  scan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false            # show results for every service, not just the first failure
+      matrix:
+        service: [ui, catalog, cart, orders, checkout]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SCA - dependency scan (${{ matrix.service }})
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: src/${{ matrix.service }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"           # THE GATE: fail the job on findings. Never set to 0.
+
+      - name: Build image (${{ matrix.service }})
+        run: docker build -t ${{ matrix.service }}:${{ github.sha }} src/${{ matrix.service }}
+
+      - name: Image scan (${{ matrix.service }})
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ matrix.service }}:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
