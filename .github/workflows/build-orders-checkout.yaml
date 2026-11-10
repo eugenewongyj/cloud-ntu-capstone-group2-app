@@ -1,0 +1,62 @@
+name: Build and Push Orders and Checkout
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/orders/**"
+      - "src/checkout/**"
+      - ".github/workflows/build-orders-checkout.yaml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write      # GitHub -> AWS OIDC login
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [orders, checkout]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image
+        run: |
+          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/group2-capstone-${{ matrix.service }}:${{ github.sha }}"
+          docker build -t "$IMAGE_URI" ./src/${{ matrix.service }}
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+
+      # Security gate: only images that pass the scan are pushed to ECR
+      - name: Image scan (gate before push)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_URI }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Push image to ECR
+        run: docker push "$IMAGE_URI"
+
+      - name: Summary
+        run: |
+          echo "### ${{ matrix.service }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- repository: \`${IMAGE_URI%:*}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- tag: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
