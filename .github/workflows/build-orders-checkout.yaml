@@ -6,6 +6,8 @@ on:
     paths:
       - "src/orders/**"
       - "src/checkout/**"
+      - "!src/orders/chart/**"
+      - "!src/checkout/chart/**"
       - ".github/workflows/build-orders-checkout.yaml"
   workflow_dispatch:
 

@@ -87,6 +87,9 @@ app:
   messaging:
     provider: 'in-memory'
 
+    sqs:
+      topic: ''      # SQS queue name, used when provider is 'sqs'
+      region: ''     # AWS region of the queue
     rabbitmq:
       addresses: []
 
