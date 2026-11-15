@@ -8,6 +8,10 @@ data:
   {{- if (eq "rabbitmq" .Values.app.messaging.provider) }}
   RETAIL_ORDERS_MESSAGING_RABBITMQ_ADDRESSES: {{ include "orders.rabbitmq.addresses" . }}
   {{- end }}
+    {{- if (eq "sqs" .Values.app.messaging.provider) }}
+  RETAIL_ORDERS_MESSAGING_SQS_TOPIC: {{ .Values.app.messaging.sqs.topic | quote }}
+  AWS_REGION: {{ .Values.app.messaging.sqs.region | quote }}
+  {{- end }}
   RETAIL_ORDERS_PERSISTENCE_PROVIDER: {{ .Values.app.persistence.provider }}
   {{- if (eq "postgres" .Values.app.persistence.provider) }}
   RETAIL_ORDERS_PERSISTENCE_ENDPOINT: {{ include "orders.postgresql.endpoint" . }}
