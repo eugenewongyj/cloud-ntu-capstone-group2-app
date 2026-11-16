@@ -27,10 +27,8 @@ import (
 
 	"github.com/aws-containers/retail-store-sample-app/catalog/config"
 	"github.com/aws-containers/retail-store-sample-app/catalog/model"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/opensearch-project/opensearch-go/v2"
 	"github.com/opensearch-project/opensearch-go/v2/opensearchapi"
-	"github.com/opensearch-project/opensearch-go/v2/signer/awsv2"
 )
 
 // SearchRepository interface for search operations
@@ -43,9 +41,6 @@ type SearchRepository interface {
 type OpenSearchRepository struct {
 	client    *opensearch.Client
 	indexName string
-	// serverless is true for Amazon OpenSearch Serverless, which does not
-	// support some APIs/settings (cluster info, _cat, shard settings, refresh).
-	serverless bool
 }
 
 // ProductDocument represents the product structure stored in OpenSearch
@@ -78,27 +73,8 @@ func NewOpenSearchRepository(config config.OpenSearchConfiguration) (*OpenSearch
 		},
 	}
 
-	serverless := false
-
-	if config.Auth == "sigv4" {
-		// Sign every request with the pod's short-lived AWS credentials (Pod Identity)
-		awsCfg, err := awsconfig.LoadDefaultConfig(context.Background())
-		if err != nil {
-			return nil, fmt.Errorf("failed to load AWS config: %w", err)
-		}
-		if awsCfg.Region == "" {
-			return nil, fmt.Errorf("AWS region is not set (set AWS_REGION)")
-		}
-		signer, err := awsv2.NewSignerWithService(awsCfg, config.AWSService)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create AWS request signer: %w", err)
-		}
-		cfg.Signer = signer
-		serverless = config.AWSService == "aoss"
-
-		fmt.Printf("Connecting to OpenSearch with AWS SigV4 (service %s)\n", config.AWSService)
-	} else if config.Username != "" && config.Password != "" {
-		// Add authentication if provided
+	// Add authentication if provided
+	if config.Username != "" && config.Password != "" {
 		cfg.Username = config.Username
 		cfg.Password = config.Password
 
@@ -110,35 +86,22 @@ func NewOpenSearchRepository(config config.OpenSearchConfiguration) (*OpenSearch
 		return nil, fmt.Errorf("failed to create OpenSearch client: %w", err)
 	}
 
-	// Test connection. OpenSearch Serverless has no cluster info API, so check
-	// the index instead (200 = exists, 404 = not yet created; both mean we're connected).
-	var res *opensearchapi.Response
-	if serverless {
-		res, err = client.Indices.Exists([]string{config.IndexName})
-		if err == nil && res.StatusCode == http.StatusNotFound {
-			res.Body.Close()
-			res, err = nil, nil
-		}
-	} else {
-		res, err = client.Info()
-	}
+	// Test connection
+	res, err := client.Info()
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to OpenSearch: %w", err)
 	}
-	if res != nil {
-		defer res.Body.Close()
+	defer res.Body.Close()
 
-		if res.IsError() {
-			return nil, fmt.Errorf("OpenSearch connection error: %s", res.String())
-		}
+	if res.IsError() {
+		return nil, fmt.Errorf("OpenSearch connection error: %s", res.String())
 	}
 
 	fmt.Println("Successfully connected to OpenSearch")
 
 	return &OpenSearchRepository{
-		client:     client,
-		indexName:  config.IndexName,
-		serverless: serverless,
+		client:    client,
+		indexName: config.IndexName,
 	}, nil
 }
 
@@ -156,10 +119,9 @@ func (r *OpenSearchRepository) InitializeData() error {
 
 	// If index exists, check if it has documents
 	if !existsRes.IsError() {
-		// Uses the _count API (works on both OpenSearch and OpenSearch Serverless;
-		// _cat/count is not available on Serverless)
-		countReq := opensearchapi.CountRequest{
-			Index: []string{r.indexName},
+		countReq := opensearchapi.CatCountRequest{
+			Index:  []string{r.indexName},
+			Format: "json",
 		}
 		countRes, err := countReq.Do(ctx, r.client)
 		if err != nil {
@@ -167,20 +129,16 @@ func (r *OpenSearchRepository) InitializeData() error {
 		}
 		defer countRes.Body.Close()
 
-		if countRes.IsError() {
-			// Don't delete an index we couldn't count
-			return fmt.Errorf("failed to check index document count: %s", countRes.String())
-		}
-
-		var countResponse struct {
-			Count int `json:"count"`
-		}
-		if err := json.NewDecoder(countRes.Body).Decode(&countResponse); err != nil {
-			return fmt.Errorf("failed to parse index document count: %w", err)
-		}
-		if countResponse.Count > 0 {
-			fmt.Printf("OpenSearch index '%s' already exists with %d documents, skipping re-index\n", r.indexName, countResponse.Count)
-			return nil
+		if !countRes.IsError() {
+			var countResponse []struct {
+				Count string `json:"count"`
+			}
+			if err := json.NewDecoder(countRes.Body).Decode(&countResponse); err == nil {
+				if len(countResponse) > 0 && countResponse[0].Count != "0" {
+					fmt.Printf("OpenSearch index '%s' already exists with %s documents, skipping re-index\n", r.indexName, countResponse[0].Count)
+					return nil
+				}
+			}
 		}
 
 		// Index exists but is empty, delete and recreate
@@ -198,16 +156,10 @@ func (r *OpenSearchRepository) InitializeData() error {
 // createAndPopulateIndex creates the index with mappings and loads product data.
 func (r *OpenSearchRepository) createAndPopulateIndex(ctx context.Context) error {
 	// Create index with mappings
-	// OpenSearch Serverless manages shards and replicas itself
-	shardSettings := `
-			"number_of_shards": 1,
-			"number_of_replicas": 0,`
-	if r.serverless {
-		shardSettings = ""
-	}
-
 	mapping := `{
-		"settings": {` + shardSettings + `
+		"settings": {
+			"number_of_shards": 1,
+			"number_of_replicas": 0,
 			"analysis": {
 				"analyzer": {
 					"product_analyzer": {
@@ -285,11 +237,8 @@ func (r *OpenSearchRepository) createAndPopulateIndex(ctx context.Context) error
 	}
 
 	bulkReq := opensearchapi.BulkRequest{
-		Body: strings.NewReader(bulkBody.String()),
-	}
-	if !r.serverless {
-		// OpenSearch Serverless does not support the refresh parameter
-		bulkReq.Refresh = "true"
+		Body:    strings.NewReader(bulkBody.String()),
+		Refresh: "true",
 	}
 
 	bulkRes, err := bulkReq.Do(ctx, r.client)

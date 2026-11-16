@@ -30,16 +30,8 @@ func createMySQLDatabase(config config.DatabaseConfiguration) (*gorm.DB, error) 
 	var db *gorm.DB
 	var err error
 
-	if config.Auth == "iam" {
-		fmt.Printf("Using IAM authentication for MySQL user %s\n", config.User)
-	}
-
 	for i := 0; i < 6; i++ {
-		if config.Auth == "iam" {
-			db, err = openMySQLWithIAM(config)
-		} else {
-			db, err = gorm.Open(mysql.Open(connectionString), &gorm.Config{})
-		}
+		db, err = gorm.Open(mysql.Open(connectionString), &gorm.Config{})
 		if err == nil {
 			return db, nil
 		}
