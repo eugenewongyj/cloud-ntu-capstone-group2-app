@@ -1,4 +1,4 @@
-name: Build and Push Orders and Checkout
+name: Build and Push Orders, Checkout and Catalog
 
 on:
   push:
@@ -6,8 +6,10 @@ on:
     paths:
       - "src/orders/**"
       - "src/checkout/**"
+      - "src/catalog/**"
       - "!src/orders/chart/**"
       - "!src/checkout/chart/**"
+      - "!src/catalog/chart/**"
       - ".github/workflows/build-orders-checkout.yaml"
   workflow_dispatch:
 
@@ -24,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [orders, checkout]
+        service: [orders, checkout, catalog]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
