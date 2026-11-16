@@ -31,6 +31,10 @@ type DatabaseConfiguration struct {
 	User           string `env:"RETAIL_CATALOG_PERSISTENCE_USER,default=catalog_user"`
 	Password       string `env:"RETAIL_CATALOG_PERSISTENCE_PASSWORD"`
 	ConnectTimeout int    `env:"RETAIL_CATALOG_PERSISTENCE_CONNECT_TIMEOUT,default=5"`
+	// Auth selects how to log in to MySQL: "password" (default, uses Password)
+	// or "iam" (short-lived RDS IAM auth token from the pod's AWS credentials,
+	// over TLS verified with the RDS CA bundle). Region comes from AWS_REGION.
+	Auth string `env:"RETAIL_CATALOG_PERSISTENCE_AUTH,default=password"`
 }
 
 // OpenSearchConfiguration exported
@@ -42,4 +46,11 @@ type OpenSearchConfiguration struct {
 	Username      string `env:"RETAIL_CATALOG_SEARCH_OS_USERNAME,default=admin"`
 	Password      string `env:"RETAIL_CATALOG_SEARCH_OS_PASSWORD"`
 	TLSSkipVerify bool   `env:"RETAIL_CATALOG_SEARCH_OS_TLS_SKIP_VERIFY,default=false"`
+	// Auth selects how to authenticate to OpenSearch: "basic" (default, uses
+	// Username/Password) or "sigv4" (AWS SigV4 signing with the pod's AWS
+	// credentials). Region comes from AWS_REGION.
+	Auth string `env:"RETAIL_CATALOG_SEARCH_OS_AUTH,default=basic"`
+	// AWSService is the SigV4 signing service: "aoss" for OpenSearch
+	// Serverless (default) or "es" for managed OpenSearch domains.
+	AWSService string `env:"RETAIL_CATALOG_SEARCH_OS_AWS_SERVICE,default=aoss"`
 }
