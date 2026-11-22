@@ -1,0 +1,64 @@
+# =====================================================================
+# Gitleaks risk acceptance register (historical findings only)
+# Every entry is a fingerprint: <commit>:<file>:<rule>:<line>
+#
+# Triage (zeyaulhaq, DevSecOps, 22 Nov 2026):
+#   48 findings, all in git history inherited from the upstream AWS
+#   retail-store-sample-app (authors: upstream maintainers + release bot, 2022-2025).
+#   Files: dist/kubernetes/deploy.yaml and deploy/kubernetes/kustomize/**/secrets.yaml
+#   - These are sample placeholder DB passwords for the upstream local demo.
+#   - None of these files exist in the current tree (HEAD); we never deploy them.
+#   - None were ever used for our AWS resources: our real DB password is
+#     AWS-generated in Secrets Manager and synced by External Secrets.
+#   Only these exact historical fingerprints are ignored. Any NEW secret,
+#   in any file or path, still fails the secret-scan gate.
+# Approved by: Eugene (DevSecOps) in PR review
+# =====================================================================
+0982a57d29968ddcdf4c47f3be55c4ff00d55f3d:dist/kubernetes/deploy.yaml:generic-api-key:22
+0982a57d29968ddcdf4c47f3be55c4ff00d55f3d:dist/kubernetes/deploy.yaml:generic-api-key:379
+0982a57d29968ddcdf4c47f3be55c4ff00d55f3d:dist/kubernetes/deploy.yaml:generic-api-key:796
+18d9070fe593ac6b38c44b7b3a2179a9bd06a6e1:dist/kubernetes/deploy.yaml:generic-api-key:22
+18d9070fe593ac6b38c44b7b3a2179a9bd06a6e1:dist/kubernetes/deploy.yaml:generic-api-key:439
+39e61972a34481e66641acedd039c7531003022b:deploy/kubernetes/kustomize/base/catalog/secrets.yaml:generic-api-key:19
+39e61972a34481e66641acedd039c7531003022b:deploy/kubernetes/kustomize/base/catalog/secrets.yaml:generic-api-key:9
+39e61972a34481e66641acedd039c7531003022b:deploy/kubernetes/kustomize/base/catalog/secrets.yaml:kubernetes-secret-yaml:12
+39e61972a34481e66641acedd039c7531003022b:deploy/kubernetes/kustomize/base/catalog/secrets.yaml:kubernetes-secret-yaml:2
+39e61972a34481e66641acedd039c7531003022b:deploy/kubernetes/kustomize/base/orders/secrets.yaml:generic-api-key:18
+39e61972a34481e66641acedd039c7531003022b:deploy/kubernetes/kustomize/base/orders/secrets.yaml:generic-api-key:8
+39e61972a34481e66641acedd039c7531003022b:deploy/kubernetes/kustomize/base/orders/secrets.yaml:kubernetes-secret-yaml:12
+39e61972a34481e66641acedd039c7531003022b:deploy/kubernetes/kustomize/base/orders/secrets.yaml:kubernetes-secret-yaml:2
+3d6e9d02d95a9e66abc096d7d0156e3d819e64fe:dist/kubernetes/deploy.yaml:generic-api-key:22
+3d6e9d02d95a9e66abc096d7d0156e3d819e64fe:dist/kubernetes/deploy.yaml:generic-api-key:437
+50ac33c4cce7e05db103540f57157986d73f6d95:dist/kubernetes/deploy.yaml:generic-api-key:22
+50ac33c4cce7e05db103540f57157986d73f6d95:dist/kubernetes/deploy.yaml:generic-api-key:379
+50ac33c4cce7e05db103540f57157986d73f6d95:dist/kubernetes/deploy.yaml:generic-api-key:796
+6157950e7bd1d69e864d4b82ef84e324548bc85a:dist/kubernetes/deploy.yaml:generic-api-key:21
+6157950e7bd1d69e864d4b82ef84e324548bc85a:dist/kubernetes/deploy.yaml:generic-api-key:414
+6157950e7bd1d69e864d4b82ef84e324548bc85a:dist/kubernetes/deploy.yaml:generic-api-key:867
+6157950e7bd1d69e864d4b82ef84e324548bc85a:dist/kubernetes/deploy.yaml:kubernetes-secret-yaml:862
+6157950e7bd1d69e864d4b82ef84e324548bc85a:dist/kubernetes/deploy.yaml:kubernetes-secret-yaml:871
+75957a8e0ea8907f5f6847fb71073a86f351274d:dist/kubernetes/deploy.yaml:generic-api-key:22
+75957a8e0ea8907f5f6847fb71073a86f351274d:dist/kubernetes/deploy.yaml:generic-api-key:437
+7e4afcc9ce72d93209b93a217753abb06f71d811:dist/kubernetes/deploy.yaml:generic-api-key:160
+7e4afcc9ce72d93209b93a217753abb06f71d811:dist/kubernetes/deploy.yaml:generic-api-key:170
+7e4afcc9ce72d93209b93a217753abb06f71d811:dist/kubernetes/deploy.yaml:kubernetes-secret-yaml:157
+7e4afcc9ce72d93209b93a217753abb06f71d811:dist/kubernetes/deploy.yaml:kubernetes-secret-yaml:168
+943298b68607048298f075d7f95157ed3f8b6f5a:deploy/kubernetes/kustomize/components/dependencies/standalone/orders-db/secrets.yaml:generic-api-key:24
+b54581666a6659824a1c735b094a2d92472f8f64:dist/kubernetes/deploy.yaml:generic-api-key:22
+b54581666a6659824a1c735b094a2d92472f8f64:dist/kubernetes/deploy.yaml:generic-api-key:439
+bbeab006beeddcb251ceec507e1bb2ff3018f977:dist/kubernetes/deploy.yaml:generic-api-key:22
+bbeab006beeddcb251ceec507e1bb2ff3018f977:dist/kubernetes/deploy.yaml:generic-api-key:379
+bbeab006beeddcb251ceec507e1bb2ff3018f977:dist/kubernetes/deploy.yaml:generic-api-key:796
+c3089a687820ff62c2a3bf733b050f47f26efe90:dist/kubernetes/deploy.yaml:generic-api-key:22
+c3089a687820ff62c2a3bf733b050f47f26efe90:dist/kubernetes/deploy.yaml:generic-api-key:437
+cb6b62c51b2f0219f0b7109316f10a41dd8df706:dist/kubernetes/deploy.yaml:generic-api-key:22
+cb6b62c51b2f0219f0b7109316f10a41dd8df706:dist/kubernetes/deploy.yaml:generic-api-key:437
+ceb0616f670eb3fb8f58ccb1de724fb1c327e896:dist/kubernetes/deploy.yaml:generic-api-key:21
+ceb0616f670eb3fb8f58ccb1de724fb1c327e896:dist/kubernetes/deploy.yaml:generic-api-key:366
+ceb0616f670eb3fb8f58ccb1de724fb1c327e896:dist/kubernetes/deploy.yaml:generic-api-key:771
+f3c90c9d61edb5a2a648e1734d3a769e672bfbb7:dist/kubernetes/deploy.yaml:generic-api-key:22
+f3c90c9d61edb5a2a648e1734d3a769e672bfbb7:dist/kubernetes/deploy.yaml:generic-api-key:379
+f3c90c9d61edb5a2a648e1734d3a769e672bfbb7:dist/kubernetes/deploy.yaml:generic-api-key:796
+fbeb06c3d7339387a6c2b8793bf0af455c386646:dist/kubernetes/deploy.yaml:generic-api-key:22
+fbeb06c3d7339387a6c2b8793bf0af455c386646:dist/kubernetes/deploy.yaml:generic-api-key:379
+fbeb06c3d7339387a6c2b8793bf0af455c386646:dist/kubernetes/deploy.yaml:generic-api-key:796
