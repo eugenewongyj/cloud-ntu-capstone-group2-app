@@ -50,6 +50,13 @@
 	</dependencyManagement>
 
     <dependencies>
+            <!-- DEMO ONLY: deliberately vulnerable library (CVE-2022-42889 "Text4Shell", CRITICAL)
+             to show the Trivy security gate blocking a PR. Never merge. -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-text</artifactId>
+            <version>1.9</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
