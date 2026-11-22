@@ -9,6 +9,16 @@ Create checkout application: helm upgrade --install checkout ./src/checkout/char
 Create ui application: helm upgrade --install ui ./src/ui/chart -n retail --wait --timeout 5m
 Access the ui: kubectl port-forward svc/ui 8080:80 -n retail
 
+## DevSecOps: CI security gates
+
+Every pull request to `main` must pass three gates before it can be merged: a **secret scan** (Gitleaks),
+a **dependency scan** and a **container image scan** (Trivy, failing on HIGH/CRITICAL vulnerabilities that
+have a fix). See **[docs/security-gates.md](docs/security-gates.md)** for how a failed gate is handled,
+with two worked examples:
+
+- a real secret-scan finding (48 historical upstream secrets), triaged and baselined in `.gitleaksignore`
+- a controlled demo where the dependency gate blocked CVE-2022-42889 (CRITICAL) until the library was upgraded
+
 ![Banner](./docs/images/banner.png)
 
 <div align="center">
