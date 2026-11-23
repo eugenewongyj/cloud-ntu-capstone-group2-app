@@ -54,3 +54,34 @@ jobs:
           docker push "$IMAGE_URI"
 
           echo "Pushed image: $IMAGE_URI" >> "$GITHUB_STEP_SUMMARY"
+
+
+  test-gitops-access:
+    name: Test GitOps Repository Access
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.GITOPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+          owner: eugenewongyj
+          repositories: cloud-ntu-capstone-group2-infra
+          permission-contents: write
+
+      - name: Checkout infrastructure repository
+        uses: actions/checkout@v4
+        with:
+          repository: eugenewongyj/cloud-ntu-capstone-group2-infra
+          ref: main
+          token: ${{ steps.app-token.outputs.token }}
+          path: infra
+
+      - name: Verify staging configuration
+        run: |
+          test -f infra/gitops/app/apps/ui-staging.yaml
+          echo "Successfully accessed infrastructure repository."
+
