@@ -57,6 +57,7 @@ jobs:
 
 
 
+
   update-staging:
     name: Create Staging Deployment PR
     needs: build
@@ -84,16 +85,14 @@ jobs:
           path: infra
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Install YAML editor
         run: python -m pip install ruamel.yaml==0.18.16
 
-      - name: Update staging and push branch
-        id: update
-        working-directory: infra
+      - name: Update staging image tag
         env:
           IMAGE_TAG: ${{ github.sha }}
         run: |
@@ -101,8 +100,10 @@ jobs:
           import os
           from pathlib import Path
           from ruamel.yaml import YAML
+          from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
-          path = Path("gitops/app/apps/ui-staging.yaml")
+          path = Path("infra/gitops/app/apps/ui-staging.yaml")
+
           yaml = YAML()
           yaml.preserve_quotes = True
 
@@ -114,43 +115,39 @@ jobs:
           if not image["repository"].endswith("/group2-capstone-ui"):
               raise ValueError("Unexpected ECR repository")
 
-          image["tag"] = os.environ["IMAGE_TAG"]
+          image["tag"] = DoubleQuotedScalarString(os.environ["IMAGE_TAG"])
 
           with path.open("w") as f:
               yaml.dump(data, f)
           PY
 
-          git add gitops/app/apps/ui-staging.yaml
+      - name: Create staging pull request
+        id: create-pr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          path: infra
+          add-paths: gitops/app/apps/ui-staging.yaml
+          base: main
+          branch: automation/ui-staging
+          commit-message: "ci: update staging UI image"
+          title: "ci: Update staging UI image"
+          body: |
+            Automated staging deployment request.
 
-          if git diff --cached --quiet; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+            Application commit: ${{ github.sha }}
 
-          BRANCH="ci/ui-staging-${IMAGE_TAG:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            Image: group2-capstone-ui:${{ github.sha }}
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            Review and merge to deploy through Argo CD.
+          delete-branch: true
 
-          git switch -c "$BRANCH"
-          git commit -m "ci: update staging UI to $IMAGE_TAG"
-          git push --set-upstream origin "$BRANCH"
-
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-
-      - name: Create pull request
-        if: steps.update.outputs.changed == 'true'
+      - name: Show pull request
+        if: steps.create-pr.outputs.pull-request-url != ''
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          IMAGE_TAG: ${{ github.sha }}
-          BRANCH: ${{ steps.update.outputs.branch }}
+          PR_URL: ${{ steps.create-pr.outputs.pull-request-url }}
         run: |
-          gh pr create \
-            --repo eugenewongyj/cloud-ntu-capstone-group2-infra \
-            --base main \
-            --head "$BRANCH" \
-            --title "ci: Update staging UI image" \
-            --body "Promote UI image $IMAGE_TAG to staging."
+          echo "Staging PR: $PR_URL" >> "$GITHUB_STEP_SUMMARY"
+
 
 
