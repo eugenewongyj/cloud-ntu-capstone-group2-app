@@ -1,0 +1,82 @@
+
+{{- if and .Values.smokeTest.enabled (eq .Release.Namespace "retail-staging") }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "ui.fullname" . }}-smoke-test
+  labels:
+    {{- include "ui.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 180
+
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: smoke-test
+          image: {{ .Values.smokeTest.image | quote }}
+          imagePullPolicy: IfNotPresent
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          env:
+            - name: TEST_URL
+              value: {{ printf "http://%s:%v%s" (include "ui.fullname" .) .Values.service.port .Values.smokeTest.path | quote }}
+
+            - name: EXPECTED_IMAGE
+              value: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.Version }}"
+
+          command:
+            - /bin/sh
+            - -ec
+
+          args:
+            - |
+              echo "Starting staging smoke test"
+              echo "Expected UI image: ${EXPECTED_IMAGE}"
+              echo "Testing URL: ${TEST_URL}"
+
+              STATUS=$(curl \
+                --fail \
+                --silent \
+                --show-error \
+                --connect-timeout 5 \
+                --max-time 10 \
+                --retry 3 \
+                --retry-delay 2 \
+                --retry-connrefused \
+                --output /dev/null \
+                --write-out "%{http_code}" \
+                "${TEST_URL}")
+
+              if [ "${STATUS}" != "200" ]; then
+                echo "Smoke test FAILED: HTTP ${STATUS}"
+                exit 1
+              fi
+
+              echo "Smoke test PASSED: HTTP ${STATUS}"
+
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+{{- end }}
