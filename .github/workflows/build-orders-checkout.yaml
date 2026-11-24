@@ -62,3 +62,103 @@ jobs:
           echo "### ${{ matrix.service }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- repository: \`${IMAGE_URI%:*}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- tag: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+  # ------------------------------------------------------------------
+  # After BOTH images pass the Trivy gate and are pushed, open a PR in the
+  # infra repo that bumps the staging image tags (same pattern as build-ui.yaml).
+  # A human reviews + merges the PR; Argo CD then deploys to retail-staging.
+  # ------------------------------------------------------------------
+  update-staging:
+    name: Create Staging Deployment PR
+    needs: build            # runs only if orders AND checkout built, passed the scan and were pushed
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.GITOPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+          owner: eugenewongyj
+          repositories: cloud-ntu-capstone-group2-infra
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Checkout infrastructure repository
+        uses: actions/checkout@v4
+        with:
+          repository: eugenewongyj/cloud-ntu-capstone-group2-infra
+          ref: main
+          token: ${{ steps.app-token.outputs.token }}
+          path: infra
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install YAML editor
+        run: python -m pip install ruamel.yaml==0.18.16
+
+      - name: Update staging image tags (orders + checkout)
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from ruamel.yaml import YAML
+          from ruamel.yaml.scalarstring import DoubleQuotedScalarString
+
+          yaml = YAML()
+          yaml.preserve_quotes = True
+
+          for service in ["orders", "checkout"]:
+              path = Path(f"infra/gitops/app-staging/apps/{service}-staging.yaml")
+              with path.open() as f:
+                  data = yaml.load(f)
+
+              image = data["spec"]["source"]["helm"]["valuesObject"]["image"]
+
+              # Safety check: never write a tag into the wrong service's file
+              if not image["repository"].endswith(f"/group2-capstone-{service}"):
+                  raise ValueError(f"Unexpected ECR repository in {path}")
+
+              image["tag"] = DoubleQuotedScalarString(os.environ["IMAGE_TAG"])
+
+              with path.open("w") as f:
+                  yaml.dump(data, f)
+          PY
+
+      - name: Create staging pull request
+        id: create-pr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          path: infra
+          add-paths: |
+            gitops/app-staging/apps/orders-staging.yaml
+            gitops/app-staging/apps/checkout-staging.yaml
+          base: main
+          branch: automation/orders-checkout-staging
+          commit-message: "ci: update staging orders and checkout images"
+          title: "ci: Update staging orders and checkout images"
+          body: |
+            Automated staging deployment request.
+
+            Application commit: ${{ github.sha }}
+
+            Images (both passed the Trivy HIGH/CRITICAL gate before push):
+            - group2-capstone-orders:${{ github.sha }}
+            - group2-capstone-checkout:${{ github.sha }}
+
+            Review and merge to deploy to retail-staging through Argo CD.
+          delete-branch: true
+
+      - name: Show pull request
+        if: steps.create-pr.outputs.pull-request-url != ''
+        env:
+          PR_URL: ${{ steps.create-pr.outputs.pull-request-url }}
+        run: |
+          echo "Staging PR: $PR_URL" >> "$GITHUB_STEP_SUMMARY"
