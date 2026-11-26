@@ -102,7 +102,7 @@ jobs:
           from ruamel.yaml import YAML
           from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
-          path = Path("infra/gitops/app/apps/ui-staging.yaml")
+          path = Path("infra/gitops/app-staging/apps/ui-staging.yaml")
 
           yaml = YAML()
           yaml.preserve_quotes = True
