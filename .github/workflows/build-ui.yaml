@@ -127,7 +127,7 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           path: infra
-          add-paths: gitops/app/apps/ui-staging.yaml
+          add-paths: gitops/app-staging/apps/ui-staging.yaml
           base: main
           branch: automation/ui-staging
           commit-message: "ci: update staging UI image"
