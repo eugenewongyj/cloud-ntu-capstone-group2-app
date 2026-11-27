@@ -223,3 +223,92 @@ jobs:
             echo "- Image tag: $IMAGE_TAG"
             echo "- Image digest: $IMAGE_DIGEST"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate GitHub App token for production PR
+        id: promotion-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.GITOPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+          owner: eugenewongyj
+          repositories: cloud-ntu-capstone-group2-infra
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Update production image tag
+        env:
+          IMAGE_REPOSITORY: ${{ github.event.client_payload.image_repository }}
+          IMAGE_TAG: ${{ github.event.client_payload.image_tag }}
+
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from ruamel.yaml import YAML
+          from ruamel.yaml.scalarstring import DoubleQuotedScalarString
+
+          path = Path("infra/gitops/app/apps/ui.yaml")
+
+          yaml = YAML()
+          yaml.preserve_quotes = True
+
+          with path.open() as f:
+              data = yaml.load(f)
+
+          image = data["spec"]["source"]["helm"]["valuesObject"]["image"]
+
+          if image["repository"] != os.environ["IMAGE_REPOSITORY"]:
+              raise ValueError("Unexpected ECR repository")
+
+          if image["tag"] == os.environ["IMAGE_TAG"]:
+              print("Production already references this image tag")
+          else:
+              image["tag"] = DoubleQuotedScalarString(os.environ["IMAGE_TAG"])
+
+              with path.open("w") as f:
+                  yaml.dump(data, f)
+
+              print("Production image tag updated")
+              print(f"Image tag: {image['tag']}")
+          PY
+
+      - name: Create production pull request
+        id: create-production-pr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ steps.promotion-token.outputs.token }}
+          path: infra
+          add-paths: gitops/app/apps/ui.yaml
+          base: main
+          branch: automation/ui-production
+          commit-message: "ci: promote UI image to production"
+          title: "ci: Promote validated UI image to production"
+          body: |
+            Automated production deployment request.
+
+            Staging application: ui-staging
+
+            Staging smoke test reported successful by Argo CD.
+
+            Image: ${{ github.event.client_payload.image_repository }}:${{ github.event.client_payload.image_tag }}
+
+            ECR image digest: ${{ steps.verify-ecr.outputs.image_digest }}
+
+            Tested chart revision: ${{ github.event.client_payload.chart_revision }}
+
+            Staging sync completed at: ${{ github.event.client_payload.sync_finished_at }}
+
+            Review and approve before merging to deploy through Argo CD.
+          draft: true
+          delete-branch: true
+
+      - name: Show production pull request
+        if: steps.create-production-pr.outputs.pull-request-url != ''
+        env:
+          PR_URL: ${{ steps.create-production-pr.outputs.pull-request-url }}
+        run: |
+          echo "## Production Promotion" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production PR: $PR_URL" >> "$GITHUB_STEP_SUMMARY"
