@@ -78,3 +78,81 @@ jobs:
             echo "- Sync finished at: $SYNC_FINISHED_AT"
             echo "- Sync phase: $SYNC_PHASE"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate read-only GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.GITOPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+          owner: eugenewongyj
+          repositories: cloud-ntu-capstone-group2-infra
+          permission-contents: read
+
+      - name: Checkout infrastructure repository
+        uses: actions/checkout@v4
+        with:
+          repository: eugenewongyj/cloud-ntu-capstone-group2-infra
+          ref: main
+          token: ${{ steps.app-token.outputs.token }}
+          path: infra
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install YAML parser
+        run: python -m pip install ruamel.yaml==0.18.16
+
+      - name: Verify staging image against Git
+        env:
+          IMAGE_REPOSITORY: ${{ github.event.client_payload.image_repository }}
+          IMAGE_TAG: ${{ github.event.client_payload.image_tag }}
+
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from ruamel.yaml import YAML
+
+          path = Path("infra/gitops/app-staging/apps/ui-staging.yaml")
+
+          yaml = YAML(typ="safe")
+
+          with path.open() as f:
+              data = yaml.load(f)
+
+          image = data["spec"]["source"]["helm"]["valuesObject"]["image"]
+
+          expected_repository = os.environ["IMAGE_REPOSITORY"]
+          expected_tag = os.environ["IMAGE_TAG"]
+
+          actual_repository = image["repository"]
+          actual_tag = image["tag"]
+
+          if actual_repository != expected_repository:
+              raise ValueError(
+                  "Notification image repository does not match staging manifest"
+              )
+
+          if actual_tag != expected_tag:
+              raise ValueError(
+                  f"Stale promotion event: "
+                  f"notification tag={expected_tag}, "
+                  f"current staging tag={actual_tag}"
+              )
+
+          print("Staging image verified successfully")
+          print(f"Repository: {actual_repository}")
+          print(f"Image tag: {actual_tag}")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write("\n## Staging Git Verification\n\n")
+              f.write("- Image repository matches staging manifest\n")
+              f.write("- Image tag matches staging manifest\n")
+              f.write(f"- Verified image tag: {actual_tag}\n")
+          PY
