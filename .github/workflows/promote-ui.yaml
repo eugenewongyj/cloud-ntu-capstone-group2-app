@@ -1,0 +1,80 @@
+name: Promote UI to Production
+
+on:
+  repository_dispatch:
+    types:
+      - ui-staging-validated
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Staging Promotion Event
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate notification payload
+        env:
+          APPLICATION: ${{ github.event.client_payload.application }}
+          NAMESPACE: ${{ github.event.client_payload.namespace }}
+          IMAGE_REPOSITORY: ${{ github.event.client_payload.image_repository }}
+          IMAGE_TAG: ${{ github.event.client_payload.image_tag }}
+          CHART_REVISION: ${{ github.event.client_payload.chart_revision }}
+          SYNC_FINISHED_AT: ${{ github.event.client_payload.sync_finished_at }}
+          SYNC_PHASE: ${{ github.event.client_payload.sync_phase }}
+
+        run: |
+          set -euo pipefail
+
+          EXPECTED_REPOSITORY="255945442255.dkr.ecr.ap-southeast-1.amazonaws.com/group2-capstone-ui"
+
+          if [[ "$APPLICATION" != "ui-staging" ]]; then
+            echo "Unexpected Argo CD application"
+            exit 1
+          fi
+
+          if [[ "$NAMESPACE" != "retail-staging" ]]; then
+            echo "Unexpected namespace"
+            exit 1
+          fi
+
+          if [[ "$SYNC_PHASE" != "Succeeded" ]]; then
+            echo "Staging synchronization was unsuccessful"
+            exit 1
+          fi
+
+          if [[ "$IMAGE_REPOSITORY" != "$EXPECTED_REPOSITORY" ]]; then
+            echo "Unexpected image repository"
+            exit 1
+          fi
+
+          if [[ ! "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid image tag"
+            exit 1
+          fi
+
+          if [[ ! "$CHART_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid chart revision"
+            exit 1
+          fi
+
+          if [[ -z "$SYNC_FINISHED_AT" ]]; then
+            echo "Missing synchronization completion time"
+            exit 1
+          fi
+
+          date -u -d "$SYNC_FINISHED_AT" > /dev/null
+
+          echo "Notification payload validated successfully"
+
+          {
+            echo "## Staging Promotion Event"
+            echo ""
+            echo "- Application: $APPLICATION"
+            echo "- Namespace: $NAMESPACE"
+            echo "- Image: $IMAGE_REPOSITORY:$IMAGE_TAG"
+            echo "- Chart revision: $CHART_REVISION"
+            echo "- Sync finished at: $SYNC_FINISHED_AT"
+            echo "- Sync phase: $SYNC_PHASE"
+          } >> "$GITHUB_STEP_SUMMARY"
