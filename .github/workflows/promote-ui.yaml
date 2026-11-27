@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   validate:
@@ -156,3 +157,69 @@ jobs:
               f.write("- Image tag matches staging manifest\n")
               f.write(f"- Verified image tag: {actual_tag}\n")
           PY
+
+      - name: Configure AWS credentials for ECR verification
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ap-southeast-1
+          inline-session-policy: >-
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "ecr:BatchGetImage",
+                  "Resource": "arn:aws:ecr:ap-southeast-1:255945442255:repository/group2-capstone-ui"
+                }
+              ]
+            }
+
+      - name: Verify ECR image artifact
+        id: verify-ecr
+        env:
+          IMAGE_TAG: ${{ github.event.client_payload.image_tag }}
+
+        run: |
+          set -euo pipefail
+
+          RESPONSE=$(aws ecr batch-get-image \
+            --registry-id 255945442255 \
+            --repository-name group2-capstone-ui \
+            --image-ids imageTag="$IMAGE_TAG" \
+            --region ap-southeast-1 \
+            --output json \
+            --no-cli-pager)
+
+          if ! IMAGE_DIGEST=$(echo "$RESPONSE" | jq -er \
+            --arg tag "$IMAGE_TAG" '
+              select(
+                (.failures | length) == 0 and
+                (.images | length) == 1
+              )
+              | .images[0].imageId
+              | select(.imageTag == $tag)
+              | .imageDigest
+              | select(
+                  type == "string" and
+                  test("^sha256:[0-9a-f]{64}$")
+                )
+            '); then
+            echo "ECR image verification failed"
+            exit 1
+          fi
+
+          echo "ECR image verified successfully"
+          echo "Image tag: $IMAGE_TAG"
+          echo "Image digest: $IMAGE_DIGEST"
+
+          echo "image_digest=$IMAGE_DIGEST" >> "$GITHUB_OUTPUT"
+
+          {
+            echo ""
+            echo "## ECR Artifact Verification"
+            echo ""
+            echo "- Image exists in ECR"
+            echo "- Image tag: $IMAGE_TAG"
+            echo "- Image digest: $IMAGE_DIGEST"
+          } >> "$GITHUB_STEP_SUMMARY"
